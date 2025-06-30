@@ -9,19 +9,19 @@ import { generateAccessAndRefreshToken } from '../utils/tokenGenerator.js';
 import { sendOtpMail } from '../utils/mailGenerator.js';
 import Otp from '../models/otpModel.js';
 const createUser = AsyncHandler(async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, avatar } = req.body;
   const result = validationResult(req.body);
   if (!result.isEmpty()) throw ApiError(402, "Invalid credentials");
   const isUser = await User.findOne({ email });
   if (isUser) throw new ApiError(402, "User Already Exists");
-  const avatarLocalPath = req.file?.path;
-  const avatar = await uploadFileonCloudinary(avatarLocalPath);
-  if (!avatar) throw new ApiError(400, "Avatar file is required");
+  // const avatarLocalPath = req.file?.path;
+  // const avatar = await uploadFileonCloudinary(avatarLocalPath);
+  // if (!avatar) throw new ApiError(400, "Avatar file is required");
   const user = await User.create({
     username,
     email,
     password,
-    avatar: avatar.url,
+    avatar
   });
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken -accessToken"
@@ -86,7 +86,7 @@ const signIn = AsyncHandler(async (req, res) => {
     sameSite: 'none',
     httpOnly: false,
     path: '/',
-    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   };
   return res
     .status(200)

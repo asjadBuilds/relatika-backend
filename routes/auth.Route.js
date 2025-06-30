@@ -9,7 +9,7 @@ route.post("/signUp",[
     query("username").notEmpty(),
     query("email").isEmail(),
     query("password").isLength({min:8}),
-],upload.single('avatar')
+]
 ,createUser);
 
 route.post("/signIn",[

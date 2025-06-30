@@ -3,13 +3,19 @@ import AsyncHandler from '../utils/AsyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import Subscription from '../models/subscriptionModel.js';
+import { uploadFileonCloudinary } from '../utils/cloudinary.js';
 const createSpace = AsyncHandler(async (req, res) => {
-    const { name, description } = req.body
+    const { name, description, tagline } = req.body
     const spaceExists = await Space.findOne({ name });
     if (spaceExists) throw new ApiError(402, "Space already exists")
+        const avatarLocalPath = req.file?.path;
+  const avatar = await uploadFileonCloudinary(avatarLocalPath);
+  if (!avatar) throw new ApiError(400, "Avatar file is required");
     const space = await Space.create({
         name,
         description,
+        tagline,
+        avatar: avatar.url,
         creator: req.user._id
     })
     res
@@ -90,6 +96,26 @@ const getUserSpaces = AsyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, spaces, "Spaces fetched successfully"))
 })
 
+const getSpaces = AsyncHandler(async(req,res)=>{
+    const spaces = await Space.find().limit(10);
+    res.status(200).json(new ApiResponse(200, spaces, "Spaces fetched successfully"))
+})
+
+const getSpaceById = AsyncHandler(async (req, res) => {
+    const { spaceId } = req.body;
+    const space = await Space.findById(spaceId);
+    if (!space) {
+        return res.status(404).json(new ApiResponse(404, null, "Space not found"));
+    }
+    const membersCount = await Subscription.countDocuments({ spaceId });
+    const responseData = {
+        ...space.toObject(),
+        membersCount,
+    };
+    res.status(200).json(new ApiResponse(200, responseData, "Space fetched successfully"));
+});
+
+
 export {
     createSpace,
     joinSpace,
@@ -98,5 +124,7 @@ export {
     editSpace,
     getSpaceByQuery,
     getSpaceMembers,
-    getUserSpaces
+    getUserSpaces,
+    getSpaces,
+    getSpaceById
 };

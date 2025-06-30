@@ -6,10 +6,16 @@ const spaceSchema = new mongoose.Schema({
         required:true,
         unique:true,
     },
+    avatar:{
+        type:String
+    },
     description:{
         type:String,
         required:true,
     },
+    rules:[{
+        type:String
+    }],
     creator:{
         type:mongoose.Schema.Types.ObjectId,
         ref:"User",

@@ -4,6 +4,8 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import Post from '../models/postModel.js';
 import Vote from '../models/voteModel.js';
+import Comment from '../models/commentModel.js';
+import { uploadFileonCloudinary } from '../utils/cloudinary.js';
 
 
 const getPaginatedPosts = AsyncHandler(async (req, res) => {
@@ -16,14 +18,35 @@ const getPaginatedPosts = AsyncHandler(async (req, res) => {
 
   const posts = await Post.find(query)
     .sort({ _id: -1 }) // newest first
-    .limit(limit + 1); // fetch 1 extra to check if there's a next page
+    .limit(limit + 1) // fetch 1 extra to check if there's a next page
+    .populate({
+    path: 'author',
+    select: 'username avatar createdAt',
+  })
+  .populate({
+    path: 'spaceId',
+    select: 'name avatar description',
+  });
+  //merging upvotes/downvotes/comments count 
+  const enrichedPosts = await Promise.all(posts.map(async post => {
+  const upvotes = await Vote.countDocuments({ postId: post._id, value: 1 });
+  const downvotes = await Vote.countDocuments({ postId: post._id, value: -1 });
+  const comments = await Comment.countDocuments({ postId: post._id });
 
-  const hasNextPage = posts.length > limit;
-  if (hasNextPage) posts.pop(); // remove the extra post
+  return {
+    ...post.toObject(),
+    upvoteCount: upvotes,
+    downvoteCount: downvotes,
+    commentCount: comments
+  };
+}));
+
+  const hasNextPage = enrichedPosts.length > limit;
+  if (hasNextPage) enrichedPosts.pop(); // remove the extra post
 
   res.status(200).json({
-    posts,
-    nextCursor: hasNextPage ? posts[posts.length - 1]._id : null,
+    enrichedPosts,
+    nextCursor: hasNextPage ? enrichedPosts[enrichedPosts.length - 1]._id : null,
   });
 });
 
@@ -45,11 +68,12 @@ const createPost = AsyncHandler(async (req, res) => {
         content,
         spaceId,
         images: gallery,
+        author: req.user._id
     });
     if (!post) throw new ApiError(500, "error creating post");
     res
         .status(200)
-        .json(new ApiResponse(200, "Post created successfully", post));
+        .json(new ApiResponse(200, post , "Post created successfully"));
 })
 
 const getPostById = AsyncHandler(async (req, res) => {
@@ -104,6 +128,7 @@ const addVoteOnPost = AsyncHandler(async (req, res) => {
         postId,
         value
     })
+    res.status(200).json(new ApiResponse(200, vote, "added vote successfully"))
 })
 
 const getCommentsByPost = AsyncHandler(async (req, res) => {
@@ -123,7 +148,7 @@ const getCommentsByPost = AsyncHandler(async (req, res) => {
             rootComments.push(comment);
         }
     })
-    res.status(200).json(new ApiResponse(200, "Comments fetched successfully", rootComments))
+    res.status(200).json(new ApiResponse(200, rootComments, "Comments fetched successfully"))
 })
 
 const addComment = AsyncHandler(async(req,res)=>{
@@ -132,7 +157,7 @@ const addComment = AsyncHandler(async(req,res)=>{
         content,
         postId,
         authorId:req.user._id,
-        parentId
+        parentId: parentId || null
     })
     if(!comment) throw new ApiError(500,"error creating comment")
     res.status(200).json(new ApiResponse(200,"Comment created successfully",comment))
