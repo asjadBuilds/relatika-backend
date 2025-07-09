@@ -8,6 +8,7 @@ import { encryptToken, decryptToken } from '../utils/encryptDecryptToken.js';
 import { generateAccessAndRefreshToken } from '../utils/tokenGenerator.js';
 import { sendOtpMail } from '../utils/mailGenerator.js';
 import Otp from '../models/otpModel.js';
+import jwt from 'jsonwebtoken';
 const createUser = AsyncHandler(async (req, res) => {
   const { username, email, password, avatar } = req.body;
   const result = validationResult(req.body);

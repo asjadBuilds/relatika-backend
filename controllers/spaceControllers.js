@@ -5,7 +5,8 @@ import ApiResponse from '../utils/ApiResponse.js';
 import Subscription from '../models/subscriptionModel.js';
 import { uploadFileonCloudinary } from '../utils/cloudinary.js';
 const createSpace = AsyncHandler(async (req, res) => {
-    const { name, description, tagline } = req.body
+    const { name, description, rules } = req.body
+    const parseRules = JSON.parse(rules)
     const spaceExists = await Space.findOne({ name });
     if (spaceExists) throw new ApiError(402, "Space already exists")
         const avatarLocalPath = req.file?.path;
@@ -14,9 +15,13 @@ const createSpace = AsyncHandler(async (req, res) => {
     const space = await Space.create({
         name,
         description,
-        tagline,
         avatar: avatar.url,
+        rules:parseRules,
         creator: req.user._id
+    })
+    await Subscription.create({
+        userId: req.user._id,
+        spaceId:space._id
     })
     res
         .status(201)
@@ -69,9 +74,28 @@ const editSpace = AsyncHandler(async (req, res) => {
 })
 const getSpaceByQuery = AsyncHandler(async (req, res) => {
     const { name } = req.query;
-    // const spaces = await Space.find({name:{$regex:name,$options:"i"}}).populate()
+    const userId = req?.user?._id
+    // const spaces = await Space.aggregate([
+    //     { $match: { name: { $regex: name, $options: "i" } } },
+    //     {
+    //         $lookup: {
+    //             from: "subscriptions",
+    //             localField: "_id",
+    //             foreignField: "spaceId",
+    //             as: "subscriptions"
+    //         }
+    //     },
+    //     {$addFields:{members:{$size:"$subscriptions"}}},
+        
+    //     {$project:{subscriptions:0}}
+    // ])
+
     const spaces = await Space.aggregate([
-        { $match: { name: { $regex: name, $options: "i" } } },
+        {
+            $match: {
+                name: { $regex: name, $options: "i" }
+            }
+        },
         {
             $lookup: {
                 from: "subscriptions",
@@ -80,9 +104,37 @@ const getSpaceByQuery = AsyncHandler(async (req, res) => {
                 as: "subscriptions"
             }
         },
-        {$addFields:{members:{$size:"$subscriptions"}}},
-        {$project:{subscriptions:0}}
-    ])
+        {
+            $addFields: {
+                members: { $size: "$subscriptions" },
+                isMember: {
+                    $cond: {
+                        if: {
+                            $gt: [
+                                {
+                                    $size: {
+                                        $filter: {
+                                            input: "$subscriptions",
+                                            as: "sub",
+                                            cond: { $eq: ["$$sub.userId", userId] }
+                                        }
+                                    }
+                                },
+                                0
+                            ]
+                        },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                subscriptions: 0
+            }
+        }
+    ]);
     res.status(200).json(new ApiResponse(200, spaces, "Spaces fetched successfully"))
 })
 const getSpaceMembers = AsyncHandler(async (req, res) => {
@@ -93,7 +145,11 @@ const getSpaceMembers = AsyncHandler(async (req, res) => {
 const getUserSpaces = AsyncHandler(async (req, res) => {
     const userId = req.user._id;
     const spaces = await Subscription.find({ userId }).populate("spaceId")
-    res.status(200).json(new ApiResponse(200, spaces, "Spaces fetched successfully"))
+    const spacesWithMembership = spaces.map(sub => {
+        const space = sub.spaceId.toObject();
+        return { ...space, isMember: true };
+    });
+    res.status(200).json(new ApiResponse(200, spacesWithMembership, "Spaces fetched successfully"))
 })
 
 const getSpaces = AsyncHandler(async(req,res)=>{
@@ -108,9 +164,11 @@ const getSpaceById = AsyncHandler(async (req, res) => {
         return res.status(404).json(new ApiResponse(404, null, "Space not found"));
     }
     const membersCount = await Subscription.countDocuments({ spaceId });
+    const isMember = await Subscription.exists({userId:req?.user?._id,spaceId});
     const responseData = {
         ...space.toObject(),
         membersCount,
+        isMember
     };
     res.status(200).json(new ApiResponse(200, responseData, "Space fetched successfully"));
 });

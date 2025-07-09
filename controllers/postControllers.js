@@ -9,45 +9,45 @@ import { uploadFileonCloudinary } from '../utils/cloudinary.js';
 
 
 const getPaginatedPosts = AsyncHandler(async (req, res) => {
-  const limit = parseInt(req.query.limit) || 10;
-  const cursor = req.query.cursor;
+    const limit = parseInt(req.query.limit) || 10;
+    const cursor = req.query.cursor;
 
-  const query = cursor
-    ? { _id: { $lt: cursor } }  // load posts older than cursor
-    : {};
+    const query = cursor
+        ? { _id: { $lt: cursor } }  // load posts older than cursor
+        : {};
 
-  const posts = await Post.find(query)
-    .sort({ _id: -1 }) // newest first
-    .limit(limit + 1) // fetch 1 extra to check if there's a next page
-    .populate({
-    path: 'author',
-    select: 'username avatar createdAt',
-  })
-  .populate({
-    path: 'spaceId',
-    select: 'name avatar description',
-  });
-  //merging upvotes/downvotes/comments count 
-  const enrichedPosts = await Promise.all(posts.map(async post => {
-  const upvotes = await Vote.countDocuments({ postId: post._id, value: 1 });
-  const downvotes = await Vote.countDocuments({ postId: post._id, value: -1 });
-  const comments = await Comment.countDocuments({ postId: post._id });
+    const posts = await Post.find(query)
+        .sort({ _id: -1 }) // newest first
+        .limit(limit + 1) // fetch 1 extra to check if there's a next page
+        .populate({
+            path: 'author',
+            select: 'username avatar createdAt',
+        })
+        .populate({
+            path: 'spaceId',
+            select: 'name avatar description',
+        });
+    //merging upvotes/downvotes/comments count 
+    const enrichedPosts = await Promise.all(posts.map(async post => {
+        const upvotes = await Vote.countDocuments({ postId: post._id, value: 1 });
+        const downvotes = await Vote.countDocuments({ postId: post._id, value: -1 });
+        const comments = await Comment.countDocuments({ postId: post._id });
 
-  return {
-    ...post.toObject(),
-    upvoteCount: upvotes,
-    downvoteCount: downvotes,
-    commentCount: comments
-  };
-}));
+        return {
+            ...post.toObject(),
+            upvoteCount: upvotes,
+            downvoteCount: downvotes,
+            commentCount: comments
+        };
+    }));
 
-  const hasNextPage = enrichedPosts.length > limit;
-  if (hasNextPage) enrichedPosts.pop(); // remove the extra post
+    const hasNextPage = enrichedPosts.length > limit;
+    if (hasNextPage) enrichedPosts.pop(); // remove the extra post
 
-  res.status(200).json({
-    enrichedPosts,
-    nextCursor: hasNextPage ? enrichedPosts[enrichedPosts.length - 1]._id : null,
-  });
+    res.status(200).json({
+        enrichedPosts,
+        nextCursor: hasNextPage ? enrichedPosts[enrichedPosts.length - 1]._id : null,
+    });
 });
 
 
@@ -73,7 +73,7 @@ const createPost = AsyncHandler(async (req, res) => {
     if (!post) throw new ApiError(500, "error creating post");
     res
         .status(200)
-        .json(new ApiResponse(200, post , "Post created successfully"));
+        .json(new ApiResponse(200, post, "Post created successfully"));
 })
 
 const getPostById = AsyncHandler(async (req, res) => {
@@ -110,9 +110,48 @@ const deletePost = AsyncHandler(async (req, res) => {
 
 const getPostsBySpaceId = AsyncHandler(async (req, res) => {
     const { spaceId } = req.params;
-    const posts = await Post.find({ spaceId });
-    if (!posts) throw new ApiError(500, "error fetching posts")
-    res.status(200).json(new ApiResponse(200, "Posts fetched successfully", posts))
+    // const posts = await Post.find({ spaceId });
+    // if (!posts) throw new ApiError(500, "error fetching posts")
+    // res.status(200).json(new ApiResponse(200, posts, "Posts fetched successfully"))
+    const limit = parseInt(req.query.limit) || 10;
+    const cursor = req.query.cursor;
+
+    const query = cursor
+        ? { _id: { $lt: cursor }, spaceId }  // load posts older than cursor
+        : {spaceId};
+
+    const posts = await Post.find(query)
+        .sort({ _id: -1 }) // newest first
+        .limit(limit + 1) // fetch 1 extra to check if there's a next page
+        .populate({
+            path: 'author',
+            select: 'username avatar createdAt',
+        })
+        .populate({
+            path: 'spaceId',
+            select: 'name avatar description',
+        });
+    //merging upvotes/downvotes/comments count 
+    const enrichedPosts = await Promise.all(posts.map(async post => {
+        const upvotes = await Vote.countDocuments({ postId: post._id, value: 1 });
+        const downvotes = await Vote.countDocuments({ postId: post._id, value: -1 });
+        const comments = await Comment.countDocuments({ postId: post._id });
+
+        return {
+            ...post.toObject(),
+            upvoteCount: upvotes,
+            downvoteCount: downvotes,
+            commentCount: comments
+        };
+    }));
+
+    const hasNextPage = enrichedPosts.length > limit;
+    if (hasNextPage) enrichedPosts.pop(); // remove the extra post
+
+    res.status(200).json({
+        enrichedPosts,
+        nextCursor: hasNextPage ? enrichedPosts[enrichedPosts.length - 1]._id : null,
+    });
 })
 
 const addVoteOnPost = AsyncHandler(async (req, res) => {
@@ -133,34 +172,35 @@ const addVoteOnPost = AsyncHandler(async (req, res) => {
 
 const getCommentsByPost = AsyncHandler(async (req, res) => {
     const { postId } = req.params;
-    const comments = await Comment.find({ postId }).sort({ createdAt: -1 }).lean();
+    const comments = await Comment.find({ postId }).sort({ createdAt: -1 }).lean().populate('authorId');
     if (!comments) throw new ApiError(500, "error fetching comments")
     const commentsById = {};
     comments.forEach((comment) => {
         comment.children = [];
-        commentsById[comment._id] = comment;
+        commentsById[comment._id.toString()] = comment;
     })
     const rootComments = [];
     comments.forEach((comment) => {
         if (comment.parentId) {
-            commentsById[comment.parentId]?.children.push(comment);
+            const parent = commentsById[comment.parentId.toString()];
+            if (parent) parent.children.push(comment);
         } else {
             rootComments.push(comment);
         }
-    })
+    });
     res.status(200).json(new ApiResponse(200, rootComments, "Comments fetched successfully"))
 })
 
-const addComment = AsyncHandler(async(req,res)=>{
-    const {content,postId,parentId} = req.body;
+const addComment = AsyncHandler(async (req, res) => {
+    const { content, postId, parentId } = req.body;
     const comment = await Comment.create({
         content,
         postId,
-        authorId:req.user._id,
+        authorId: req.user._id,
         parentId: parentId || null
     })
-    if(!comment) throw new ApiError(500,"error creating comment")
-    res.status(200).json(new ApiResponse(200,"Comment created successfully",comment))
+    if (!comment) throw new ApiError(500, "error creating comment")
+    res.status(200).json(new ApiResponse(200, "Comment created successfully", comment))
 })
 
 export {

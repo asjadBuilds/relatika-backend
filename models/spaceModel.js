@@ -14,7 +14,8 @@ const spaceSchema = new mongoose.Schema({
         required:true,
     },
     rules:[{
-        type:String
+        title:String,
+        content:String
     }],
     creator:{
         type:mongoose.Schema.Types.ObjectId,

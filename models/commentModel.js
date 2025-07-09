@@ -20,7 +20,7 @@ const commentSchema = new mongoose.Schema({
         ref:"Comment",
         default:null,
     }
-})
+},{timestamps:true})
 
 const Comment = mongoose.model("Comment", commentSchema);
 export default Comment;

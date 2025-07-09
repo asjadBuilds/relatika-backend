@@ -1,5 +1,5 @@
 import express from 'express';
-import { addComment, addVoteOnPost, createPost, getCommentsByPost, getPaginatedPosts } from '../controllers/postControllers.js';
+import { addComment, addVoteOnPost, createPost, getCommentsByPost, getPaginatedPosts, getPostsBySpaceId } from '../controllers/postControllers.js';
 import { query } from 'express-validator';
 import upload from '../middlewares/multer.middleware.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
@@ -30,5 +30,7 @@ route.post("/addComment",
     ],
     verifyJWT,
     addComment)
+
+route.get("/getPostsBySpaceId/:spaceId",verifyJWT,getPostsBySpaceId);
 
 export default route;
