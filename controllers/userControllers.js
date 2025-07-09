@@ -5,7 +5,8 @@ import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
 
 const getUserPosts = AsyncHandler(async(req,res)=>{
-    const posts = await Post.find({author:req?.user?._id})
+    const {userId} = req.body;
+    const posts = await Post.find({author:userId})
     .sort({ _id: -1 })
     .populate('author spaceId');
     if(!posts) throw new ApiError(404,"No Posts found");
@@ -15,7 +16,8 @@ const getUserPosts = AsyncHandler(async(req,res)=>{
 })
 
 const getUserComments = AsyncHandler(async(req,res)=>{
-    const comments = await Comment.find({authorId:req?.user?._id})
+    const {userId} = req.body;
+    const comments = await Comment.find({authorId:userId})
     .sort({ _id: -1 })
     .populate({
         path:'authorId',

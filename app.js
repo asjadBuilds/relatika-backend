@@ -29,7 +29,7 @@ dotenv.config()
 mongoDb();
 socketManager(io)
 
-app.listen(process.env.PORT, ()=>{
+server.listen(process.env.PORT, ()=>{
     console.log(`Server is running at ${process.env.PORT}`)
 })
 
