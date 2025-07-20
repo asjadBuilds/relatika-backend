@@ -1,7 +1,7 @@
 import Conversation from '../models/conversationModel.js'
 import AsyncHandler from '../utils/AsyncHandler.js'
 import ApiResponse from '../utils/ApiResponse.js'
-import Message from '../models/MessageModel.js'
+import Message from '../models/messageModel.js'
 import ApiError from '../utils/ApiError.js'
 const getConversations = AsyncHandler(async(req,res)=>{
     const conversations = await Conversation.find({
